@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "demo_power_meter_loop",
+    "description": "Demonstrate sequencer loop capability: perform 10 power measurements from power_meter module and record each value.",
+    "author": "Sequencer Demo"
+  },
+  "context": {
+    "variables": {
+      "measurement_count": 10,
+      "measurements": []
+    }
+  },
+  "sequence": [
+    {
+      "step_id": "1",
+      "type": "loop",
+      "description": "Perform 10 power measurements in sequence and accumulate results",
+      "loop_count": 10,
+      "loop_variable": "iteration",
+      "accumulate_as": "measurements",
+      "steps": [
+        {
+          "step_id": "1.1",
+          "type": "request",
+          "description": "Measure power from power_meter module",
+          "module": "power_meter",
+          "command": "measure_power",
+          "timeout_seconds": 5,
+          "capture_as": "power_measurement"
+        },
+        {
+          "step_id": "1.2",
+          "type": "wait",
+          "description": "Brief pause between measurements",
+          "duration_seconds": 0.5
+        }
+      ]
+    },
+    {
+      "step_id": "2",
+      "type": "aggregate",
+      "description": "Calculate statistics from accumulated measurements",
+      "source": "measurements",
+      "aggregations": [
+        {
+          "name": "average",
+          "operation": "mean"
+        },
+        {
+          "name": "current",
+          "operation": "last"
+        },
+        {
+          "name": "max",
+          "operation": "max"
+        },
+        {
+          "name": "min",
+          "operation": "min"
+        },
+        {
+          "name": "count",
+          "operation": "count"
+        }
+      ],
+      "store_as": "measurement_summary"
+    },
+    {
+      "step_id": "3",
+      "type": "return",
+      "description": "Return measurement summary to parent sequence",
+      "value": "measurement_summary"
+    }
+  ]
+}

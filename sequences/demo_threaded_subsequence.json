@@ -1,0 +1,137 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "demo_threaded_temperature_monitor",
+    "description": "Threaded subsequence that runs temperature measurements in parallel with the parent sequence. Continuously monitors temperature and records readings to shared context.",
+    "author": "Sequencer Demo",
+    "execution_mode": "threaded"
+  },
+  "context": {
+    "variables": {
+      "temperature_readings": [],
+      "high_temp_threshold": 50.0,
+      "alert_count": 0,
+      "monitoring_active": true
+    }
+  },
+  "sequence": [
+    {
+      "step_id": "1",
+      "type": "report",
+      "message": "Temperature monitor thread started",
+      "level": "info"
+    },
+    {
+      "step_id": "2",
+      "type": "while_loop",
+      "description": "Continuously measure temperature until parent signals stop via monitoring_active flag",
+      "condition": {
+        "source": "monitoring_active",
+        "operator": "==",
+        "value": true
+      },
+      "loop_variable": "reading_index",
+      "steps": [
+        {
+          "step_id": "2.1",
+          "type": "request",
+          "description": "Request temperature measurement from temperature_sensor module",
+          "module": "temperature_sensor",
+          "command": "read_temperature",
+          "timeout_seconds": 5,
+          "capture_as": "temp_reading"
+        },
+        {
+          "step_id": "2.2",
+          "type": "conditional",
+          "description": "Check if temperature exceeds threshold",
+          "condition": {
+            "source": "temp_reading",
+            "field": "celsius",
+            "operator": ">",
+            "value": 50.0
+          },
+          "on_true": {
+            "steps": [
+              {
+                "step_id": "2.2.1",
+                "type": "report",
+                "message": "HIGH TEMPERATURE ALERT: {temp_reading} C",
+                "level": "warning"
+              },
+              {
+                "step_id": "2.2.2",
+                "type": "update_context",
+                "variable": "alert_count",
+                "operation": "increment"
+              }
+            ]
+          }
+        },
+        {
+          "step_id": "2.3",
+          "type": "accumulate",
+          "description": "Store temperature reading in shared array",
+          "source": "temp_reading",
+          "target_variable": "temperature_readings"
+        },
+        {
+          "step_id": "2.4",
+          "type": "report",
+          "message": "Temperature reading {reading_index}: {temp_reading} C",
+          "level": "debug"
+        },
+        {
+          "step_id": "2.5",
+          "type": "wait",
+          "description": "Wait before next measurement",
+          "duration_seconds": 2
+        }
+      ]
+    },
+    {
+      "step_id": "3",
+      "type": "aggregate",
+      "description": "Calculate temperature statistics from all readings",
+      "source": "temperature_readings",
+      "aggregations": [
+        {
+          "name": "average_temp",
+          "operation": "mean"
+        },
+        {
+          "name": "max_temp",
+          "operation": "max"
+        },
+        {
+          "name": "min_temp",
+          "operation": "min"
+        },
+        {
+          "name": "final_temp",
+          "operation": "last"
+        },
+        {
+          "name": "total_readings",
+          "operation": "count"
+        }
+      ],
+      "store_as": "temperature_summary"
+    },
+    {
+      "step_id": "4",
+      "type": "report",
+      "message": "Temperature monitoring thread completed",
+      "level": "info"
+    },
+    {
+      "step_id": "5",
+      "type": "return",
+      "description": "Return temperature summary and alert count to parent",
+      "value": {
+        "summary": "temperature_summary",
+        "alerts": "alert_count"
+      }
+    }
+  ]
+}

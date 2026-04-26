@@ -1,0 +1,173 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "demo_power_supply_test",
+    "description": "Demonstrate sequencer orchestration: greet device, connect power supply, measure current, conditionally report status, disconnect.",
+    "author": "Sequencer Demo"
+  },
+  "context": {
+    "variables": {
+      "measurement_threshold": 3.0,
+      "max_temperature_limit": 75.0
+    }
+  },
+  "sequence": [
+    {
+      "step_id": "0",
+      "type": "call_sequence",
+      "description": "Start temperature monitoring thread",
+      "sequence_file": "demo_threaded_subsequence.json",
+      "execution_mode": "threaded",
+      "capture_as": "temp_monitor_handle"
+    },
+    {
+      "step_id": "1",
+      "type": "request",
+      "description": "Greet the hello_world module and capture response",
+      "module": "hello_world",
+      "command": "greet",
+      "timeout_seconds": 5,
+      "capture_as": "greeting_response"
+    },
+    {
+      "step_id": "2",
+      "type": "action",
+      "description": "Connect to power supply on COM4",
+      "module": "power_supply",
+      "command": "connect",
+      "parameters": {
+        "port": "COM4"
+      }
+    },
+    {
+      "step_id": "3",
+      "type": "action",
+      "description": "Enable power supply output",
+      "module": "power_supply",
+      "command": "toggle_output",
+      "parameters": {
+        "output": "enable"
+      }
+    },
+    {
+      "step_id": "4",
+      "type": "wait",
+      "description": "Wait for device to stabilize",
+      "duration_seconds": 3
+    },
+    {
+      "step_id": "4.5",
+      "type": "conditional",
+      "description": "Check if temperature is within acceptable limits",
+      "condition": {
+        "source_context": "temperature_readings",
+        "field": "last",
+        "operator": "<",
+        "value": 75.0
+      },
+      "on_false": {
+        "steps": [
+          {
+            "step_id": "4.5.1",
+            "type": "report",
+            "message": "CRITICAL: Temperature exceeds limit! Aborting sequence.",
+            "level": "error"
+          },
+          {
+            "step_id": "4.5.2",
+            "type": "update_context",
+            "context_file": "demo_threaded_subsequence.json",
+            "variable": "monitoring_active",
+            "value": false
+          },
+          {
+            "step_id": "4.5.3",
+            "type": "abort",
+            "message": "Temperature safety limit exceeded"
+          }
+        ]
+      }
+    },
+    {
+      "step_id": "5",
+      "type": "call_sequence",
+      "description": "Execute power meter measurement loop subsequence (10 measurements)",
+      "sequence_file": "demo_power_meter_loop.json",
+      "capture_as": "measurement_response"
+    },
+    {
+      "step_id": "6",
+      "type": "conditional",
+      "description": "Check if measured current exceeds threshold (3A)",
+      "condition": {
+        "source": "measurement_response",
+        "field": "current",
+        "operator": ">",
+        "value": 3.0
+      },
+      "on_true": {
+        "steps": [
+          {
+            "step_id": "6.1",
+            "type": "report",
+            "message": "Device turned on",
+            "level": "info"
+          }
+        ]
+      },
+      "on_false": {
+        "steps": [
+          {
+            "step_id": "6.2",
+            "type": "report",
+            "message": "Device not present",
+            "level": "warning"
+          }
+        ]
+      }
+    },
+    {
+      "step_id": "7",
+      "type": "action",
+      "description": "Disable power supply output",
+      "module": "power_supply",
+      "command": "toggle_output",
+      "parameters": {
+        "output": "disable"
+      }
+    },
+    {
+      "step_id": "8",
+      "type": "wait",
+      "description": "Wait before disconnect",
+      "duration_seconds": 1
+    },
+    {
+      "step_id": "9",
+      "type": "action",
+      "description": "Disconnect from power supply",
+      "module": "power_supply",
+      "command": "disconnect"
+    },
+    {
+      "step_id": "10",
+      "type": "update_context",
+      "description": "Signal temperature monitoring thread to stop",
+      "context_file": "demo_threaded_subsequence.json",
+      "variable": "monitoring_active",
+      "value": false
+    },
+    {
+      "step_id": "11",
+      "type": "wait",
+      "description": "Wait for temperature monitoring thread to finish",
+      "duration_seconds": 3
+    },
+    {
+      "step_id": "12",
+      "type": "report",
+      "message": "Sequence completed. Temperature monitoring thread stopped.",
+      "level": "info"
+    }
+  ]
+}
